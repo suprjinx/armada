@@ -64,5 +64,6 @@
   "devDependencies": {
     "@types/react-truncate": "^2.3.4",
     "@types/validator": "^13.7.3"
-  }
+  },
+  "version": "0.0.0"
 }
