@@ -15,7 +15,7 @@ For the api definitions:
 [https://armadaproject.io/api](https://armadaproject.io/api)
 
 
-### _class_ armada_client.client.ArmadaClient(channel, max_workers=None)
+### _class_ armada_client.client.ArmadaClient(channel, event_timeout=datetime.timedelta(seconds=900))
 Client for accessing Armada over gRPC.
 
 
@@ -27,8 +27,7 @@ Client for accessing Armada over gRPC.
     for more information.
 
 
-    * **max_workers** (*Optional**[**int**]*) – number of cores for thread pools, if unset, defaults
-    to number of CPUs
+    * **event_timeout** (*datetime.timedelta*) – 
 
 
 
@@ -38,35 +37,34 @@ Client for accessing Armada over gRPC.
 
 
 
-#### cancel_jobs(queue=None, job_id=None, job_set_id=None)
+#### cancel_jobs(queue, job_set_id, job_id=None)
 Cancel jobs in a given queue.
 
-Uses the CancelJobs RPC to cancel jobs. Either job_id or
-job_set_id is required.
+Uses the CancelJobs RPC to cancel jobs.
 
 
 * **Parameters**
 
     
-    * **queue** (*Optional**[**str**]*) – The name of the queue
+    * **queue** (*str*) – The name of the queue
 
 
-    * **job_id** (*Optional**[**str**]*) – The name of the job id (this or job_set_id required)
+    * **job_set_id** (*str*) – The name of the job set id
 
 
-    * **job_set_id** (*Optional**[**str**]*) – An array of JobSubmitRequestItems. (this or job_id required)
+    * **job_id** (*str** | **None*) – The name of the job id (optional), if empty - cancel all jobs
 
 
 
 * **Returns**
 
-    A JobSubmitResponse object.
+    A CancellationResult object.
 
 
 
 * **Return type**
 
-    armada.submit_pb2.JobCancelRequest
+    armada.submit_pb2.CancellationResult
 
 
 
@@ -118,25 +116,25 @@ Create a job request.
     * **pod_specs** (*Optional**[**List**[**armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec**]**]*) – List of k8s pod specs of the job
 
 
-    * **namespace** (*Optional**[**str**]*) – The namespace of the job
+    * **namespace** (*str** | **None*) – The namespace of the job
 
 
-    * **client_id** (*Optional**[**str**]*) – The client id of the job
+    * **client_id** (*str** | **None*) – The client id of the job
 
 
-    * **labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The labels of the job
+    * **labels** (*Dict**[**str**, **str**] **| **None*) – The labels of the job
 
 
-    * **annotations** (*Optional**[**Dict**[**str**, **str**]**]*) – The annotations of the job
+    * **annotations** (*Dict**[**str**, **str**] **| **None*) – The annotations of the job
 
 
-    * **required_node_labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The required node labels of the job
+    * **required_node_labels** (*Dict**[**str**, **str**] **| **None*) – The required node labels of the job
 
 
-    * **ingress** (*Optional**[**List**[**armada.submit_pb2.IngressConfig**]**]*) – The ingress of the job
+    * **ingress** (*List**[**armada.submit_pb2.IngressConfig**] **| **None*) – The ingress of the job
 
 
-    * **services** (*Optional**[**List**[**armada.submit_pb2.ServiceConfig**]**]*) – The services of the job
+    * **services** (*List**[**armada.submit_pb2.ServiceConfig**] **| **None*) – The services of the job
 
 
 
@@ -178,19 +176,19 @@ Create a queue request object.
     * **name** (*str*) – The name of the queue
 
 
-    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
+    * **priority_factor** (*float** | **None*) – The priority factor for the queue
 
 
-    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
+    * **user_owners** (*List**[**str**] **| **None*) – The user owners for the queue
 
 
-    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
+    * **group_owners** (*List**[**str**] **| **None*) – The group owners for the queue
 
 
-    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
+    * **resource_limits** (*Dict**[**str**, **float**] **| **None*) – The resource limits for the queue
 
 
-    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
+    * **permissions** (*List**[**armada_client.permissions.Permissions**] **| **None*) – The permissions for the queue
 
 
 
@@ -257,6 +255,60 @@ Health check for Event Service.
 
 
 
+#### get_job_details(job_ids)
+Retrieves the details of a job from Armada.
+
+
+* **Parameters**
+
+    **job_ids** (*List**[**str**]*) – A list of unique job identifiers.
+
+
+
+* **Returns**
+
+    The Armada job details response.
+
+
+
+* **Return type**
+
+    armada.job_pb2.JobDetailsResponse
+
+
+
+#### get_job_errors(job_ids)
+Retrieves termination reason from query api.
+
+
+* **Parameters**
+
+    
+    * **queue** – The name of the queue
+
+
+    * **job_set_id** – The name of the job set (a grouping of jobs)
+
+
+    * **external_job_uri** – externalJobUri annotation value
+
+
+    * **job_ids** (*List**[**str**]*) – 
+
+
+
+* **Returns**
+
+    The response from the server containing the job errors.
+
+
+
+* **Return type**
+
+    JobErrorsResponse
+
+
+
 #### get_job_events_stream(queue, job_set_id, from_message_id=None)
 Get event stream for a job set.
 
@@ -282,7 +334,7 @@ for event in events:
     * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
 
 
-    * **from_message_id** (*Optional**[**str**]*) – The from message id.
+    * **from_message_id** (*str** | **None*) – The from message id.
 
 
 
@@ -294,7 +346,80 @@ for event in events:
 
 * **Return type**
 
-    *Generator*[armada.event_pb2.EventMessage, None, None]
+    *Iterator*[armada.event_pb2.EventStreamMessage]
+
+
+
+#### get_job_run_details(run_ids)
+Retrieves the details of a job run from Armada.
+
+
+* **Parameters**
+
+    **run_ids** (*List**[**str**]*) – A list of unique job run identifiers.
+
+
+
+* **Returns**
+
+    The Armada run details response.
+
+
+
+* **Return type**
+
+    armada.job_pb2.JobRunDetailsResponse
+
+
+
+#### get_job_status(job_ids)
+Retrieves the status of a list of jobs from Armada.
+
+
+* **Parameters**
+
+    **job_ids** (*List**[**str**]*) – A list of unique job identifiers.
+
+
+
+* **Returns**
+
+    The response from the server containing the job status.
+
+
+
+* **Return type**
+
+    JobStatusResponse
+
+
+
+#### get_job_status_by_external_job_uri(queue, job_set_id, external_job_uri)
+Retrieves the status of a job based on externalJobUri annotation.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
+
+
+    * **external_job_uri** (*str*) – externalJobUri annotation value
+
+
+
+* **Returns**
+
+    The response from the server containing the job status.
+
+
+
+* **Return type**
+
+    JobStatusResponse
 
 
 
@@ -322,35 +447,60 @@ Uses the GetQueue RPC to get the queue.
 
 
 
-#### get_queue_info(name)
-Get the queue info by name.
+#### get_queues()
+Get all queues.
 
-Uses the GetQueueInfo RPC to get queue info.
-
-
-* **Parameters**
-
-    **name** (*str*) – The name of the queue
-
+Uses the GetQueues RPC to get the queues.
 
 
 * **Returns**
 
-    A queue info object.  See the api definition.
+    list containing all queues
 
 
 
 * **Return type**
 
-    armada.submit_pb2.QueueInfo
+    *List*[armada.submit_pb2.Queue]
 
 
 
-#### reprioritize_jobs(new_priority, job_ids=None, job_set_id=None, queue=None)
+#### preempt_jobs(queue, job_set_id, job_id)
+Preempt jobs in a given queue.
+
+Uses the PreemptJobs RPC to preempt jobs.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – The name of the job set id
+
+
+    * **job_id** (*str*) – The id the job
+
+
+
+* **Returns**
+
+    An empty response.
+
+
+
+* **Return type**
+
+    google.protobuf.empty_pb2.Empty
+
+
+
+#### reprioritize_jobs(new_priority, job_ids, job_set_id, queue)
 Reprioritize jobs with new_priority value.
 
 Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
-or job set.
+or job set (if job_ids are set to None or empty).
 
 
 * **Parameters**
@@ -359,19 +509,19 @@ or job set.
     * **new_priority** (*float*) – The new priority value for the jobs
 
 
-    * **job_ids** (*Optional**[**List**[**str**]**]*) – A list of job ids to change priority of
+    * **job_ids** (*List**[**str**] **| **None*) – A list of job ids to change priority of
 
 
-    * **job_set_id** (*Optional**[**str**]*) – A job set id including jobs to change priority of
+    * **job_set_id** (*str*) – A job set id including jobs to change priority of
 
 
-    * **queue** (*Optional**[**str**]*) – The queue the jobs are in
+    * **queue** (*str*) – The queue the jobs are in
 
 
 
 * **Returns**
 
-    ReprioritizeJobsResponse object. It is a map of strings.
+    JobReprioritizeResponse object. It is a map of strings.
 
 
 
@@ -393,7 +543,7 @@ Health check for Submit Service.
 
 
 #### submit_jobs(queue, job_set_id, job_request_items)
-Submit a armada job.
+Submit an armada job.
 
 Uses SubmitJobs RPC to submit a job.
 
@@ -508,7 +658,7 @@ Uses the UpdateQueues RPC to update a list of queues.
 Represents a gRPC proto event
 
 Definition can be found at:
-[https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
+[https://github.com/armadaproject/armada/blob/master/pkg/api/event.proto#L284](https://github.com/armadaproject/armada/blob/master/pkg/api/event.proto#L284)
 
 
 * **Parameters**
@@ -583,3 +733,59 @@ Convert this Subject to a grpc Subject.
 * **Return type**
 
     armada.submit_pb2.Subject
+
+
+## armada_client.log_client module
+
+
+### _class_ armada_client.log_client.JobLogClient(url, job_id, disable_ssl=False)
+Client for retrieving logs for a given job.
+
+
+* **Parameters**
+
+    
+    * **url** (*str*) – The url to use for retreiving logs.
+
+
+    * **job_id** (*str*) – The ID of the job.
+
+
+    * **disable_ssl** (*bool*) – 
+
+
+
+* **Returns**
+
+    A JobLogClient instance.
+
+
+
+#### logs(since_time='')
+Retrieve logs for the job associated with this client.
+
+
+* **Parameters**
+
+    **since_time** (*str** | **None*) – Logs will be retrieved starting at the time
+    specified in this str. Must conform to RFC3339 date time format.
+
+
+
+* **Returns**
+
+    A list of LogLine objects.
+
+
+
+### _class_ armada_client.log_client.LogLine(line, timestamp)
+Represents a single line from a log.
+
+
+* **Parameters**
+
+    
+    * **line** (*str*) – 
+
+
+    * **timestamp** (*str*) –

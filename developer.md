@@ -1,154 +1,258 @@
-# Developer setup
+# Developer Guide
 
-Here, we show how to setup Armada for local development.
+## Introduction
 
-**Prerequisites:**
-* Golang >= 1.18 [https://golang.org/doc/install](https://golang.org/doc/install)
-* `kubectl` [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-* Docker installed and configured for the current user [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
-* Dependencies and tooling installed via `make download`.
+This document is intended for developers who want to contribute to the project. It contains information about the project structure, how to build the project, and how to run the tests.
 
-This guide assumes you have cloned this repository and are executing commands from its root directory.
+## TLDR
 
-## Running Armada locally
+Want to quickly get Armada running and test it? Install the [Pre-requisites](#pre-requisites) and then run:
 
-Armada schedules pods across Kubernetes clusters. Hence, for a local setup there needs to be at least one worker Kubernetes cluster available on the local machine, for which we use [kind](https://github.com/kubernetes-sigs/kind). Further, the Armada server, which is responsible for job submission and queuing, and an Armada executor must be running. The executor is responsible for interacting with the worker Kubernetes cluster.
-
-In addition, Armada relies on the following components for storage and communication:
-
-- Pulsar: used for passing messages between components.
-- Redis: the main database of Armada; used, e.g., to store queued jobs.
-- PostgreSQL: used for auxilliary storage. In the future, PostgreSQL will be the main database, instead of Redis.
-
-All of these components can be started and initialised with `./localdev/run.sh` When the script completes, you will have a fully functional local deployment of armada via docker.
-
-Create a queue and submit a job:
 ```bash
-go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
-go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
-go run ./cmd/armadactl/main.go watch test job-set-1
+mage localdev minimal testsuite
 ```
 
-**Note:** In the default setup you should submit jobs to the kubernetes `personal-anonymous` namespace. See this job-spec snippet:
-```yaml
-queue: test
-jobSetId: job-set-1
-jobs:
-  - priority: 0
-    namespace: personal-anonymous
-    podSpec:
-```
+To get the UI running, run:
 
-For more details on submitting jobs to Armada, see [the user guide](https://github.com/G-Research/armada/blob/master/docs/user.md). Once you submit jobs, you should see pods appearing in your worker cluster(s).
-
-**Note:** Depending on your Docker setup you might need to load images for jobs you plan to run manually:
 ```bash
-kind load docker-image busybox:latest
+mage ui
 ```
 
-Armada uses proto files extensively. Code-generation based on these files is run via `make proto`.
+## A note for Devs on Arm / Windows
 
-## Lookout - Armada web UI
+There is limited information on issues that appear on Arm / Windows Machines when running this setup.
 
-Armada bundles a web UI referred to as Lookout. Lookout requires PostgreSQL. Lookout is based on React and is built with:
+Feel free to create a ticket if you encounter any issues, and link them to the relavent issue:
+
+* https://github.com/armadaproject/armada/issues/2493 (Arm)
+* https://github.com/armadaproject/armada/issues/2492 (Windows)
+
+
+## Design Docs
+
+Please see these documents for more information about Armadas Design:
+
+* [Armada Components Diagram](./design/relationships_diagram.md)
+* [Armada Architecture](./design/architecture.md)
+* [Armada Design](./design/index.md)
+* [How Priority Functions](./design/priority.md)
+* [Armada Scheduler Design](./design/scheduler.md)
+
+## Other Useful Developer Docs
+
+* [Armada API](./developer/api.md)
+* [Running Armada in an EC2 Instance](./developer/aws-ec2.md)
+* [Armada UI](./developer/ui.md)
+* [Usage Metrics](./developer/usage_metrics.md)
+* [Using OIDC with Armada](./developer/oidc.md)
+* [Building the Website](./developer/website.md)
+* [Using Localdev Manually](./developer/manual-localdev.md)
+* [Inspecting and Debugging etcd in Localdev setup](./developer/etc-localdev.md)
+
+## Pre-requisites
+
+- [Go](https://go.dev/doc/install) (version 1.23 or later)
+- gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/))
+- [mage](https://magefile.org/)
+- [docker](https://docs.docker.com/get-docker/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
+- [protoc](https://github.com/protocolbuffers/protobuf/releases)
+- [helm](https://helm.sh/docs/intro/install/) (version 3.10.0 or later)
+
+## Using Mage
+
+Mage is a build tool that we use to build Armada. It is similar to Make, but written in Go. It is used to build Armada, run tests, and run other useful commands. To see a list of available commands, run `mage -l`.
+
+## LocalDev Setup
+
+LocalDev provides a reliable and extendable way to install Armada as a developer. It runs the following steps:
+
+* Bootstrap the required tools from [tools.yaml](https://github.com/armadaproject/armada/blob/master/tools.yaml)
+* Create a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
+* Start the dependencies of Armada, including Pulsar, Redis, and Postgres.
+
+**Note: If you edit a proto file, you will also need to run `mage proto` to regenerate the Go code.**
+
+It has the following options to customize further steps:
+
+* `mage localdev full` - Runs all components of Armada, including the Lookout UI.
+* `mage localdev minimal` - Runs only the core components of Armada (such as the API server and an executor).
+* `mage localdev no-build` - Skips the build step; set `ARMADA_IMAGE` and `ARMADA_TAG` to choose the Docker image to use.
+
+`mage localdev minimal` is what is used to test the CI pipeline, and is the recommended way to test changes to the core components of Armada.
+
+## Debug error saying that the (port 6443 is already in use) after running mage localdev full
+
+## Identifying the Conflict
+
+Before making any changes, it's essential to identify which port is causing the conflict. Port 6443 is a common source of conflicts. You can check for existing bindings to this port using commands like `netstat` or `lsof`.
+
+1. The `kind.yaml` file is where you define the configuration for your Kind clusters. To resolve port conflicts:
+
+* Open your [kind.yaml](https://github.com/armadaproject/armada/blob/master/e2e/setup/kind.yaml) file.
+
+2. Locate the relevant section where the `hostPort` is set. It may look something like this:
+
+   
+   ```
+   - containerPort: 6443 # control plane
+     hostPort: 6443  # exposes control plane on localhost:6443
+     protocol: TCP
+   ```
+
+   * Modify the hostPort value to a port that is not in use on your system. For example:
+   
+   ```
+   - containerPort: 6443 # control plane
+     hostPort: 6444  # exposes control plane on localhost:6444
+     protocol: TCP
+   ```
+   You are not limited to using port 6444; you can choose any available port that doesn't conflict with other services on your system. Select a port that suits your system configuration.
+
+### Testing if LocalDev is working
+
+Running `mage testsuite` will run the full test suite against the localdev cluster. This is the recommended way to test changes to the core components of Armada.
+
+You can also run the same commands yourself:
+
 ```bash
-cd ./internal/lookout/ui
-yarn install
-yarn run openapi
-yarn run build
+go run cmd/armadactl/main.go create queue e2e-test-queue
+
+# To allow Ingress tests to pass
+export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
+export ARMADA_EXECUTOR_INGRESS_PORT=5001
+
+go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
-Once completed, the Lookout UI should be accessible through your browser at `http://localhost:8089`
+### Running the UI
 
-For UI development, you can also use the React development server and skip the build step. Note that the Lookout API service will 
-still have to be running for this to work. Browse to `http://localhost:3000` with this.
+In LocalDev, the UI is built seperately with `mage ui`. To access it, open http://localhost:8089 in your browser.
+
+For more information see the [UI Developer Guide](./developer/ui.md).
+
+
+### Choosing components to run
+
+You can set the `ARMADA_COMPONENTS` environment variable to choose which components to run. It is a comma separated list of components to run. For example, to run only the server and executor, you can run:
+
 ```bash
-yarn run start
+export ARMADA_COMPONENTS="server,executor"
 ```
+
+### Running Pulsar backed scheduler with LocalDev
+
+Ensure your local environment is completely torn down with
+```bash
+mage LocalDevStop
+```
+
+And then run
+
+```bash
+mage LocalDev minimal
+```
+
+Ensure your local dev environment is completely torn down when switching between pulsar backed and legacy
+setups.
+
+If the eventsingester or the scheduleringester don't come up then just manually spin them up with `docker-compose up`.
 
 ## Debugging
 
-The `localdev` environment can be started with debug servers for all 
-Armada services. When started this way, you can connect to the debug 
-servers using remote debugging configurations in your IDE, or by using 
-the delve client (illustrated here). Note that the port numbers are 
-different for each service.
+The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of localdev as required.
+
+**NOTE: We are actively accepting contributions for more debugging guides!**
+
+It supports the following commands:
+
+* `mage debug vscode` - Runs the server and executor in debug mode, and provides a launch.json file for VSCode.
+* `mage debug delve` - Runs the server and executor in debug mode, and starts the Delve debugger.
+
+### VSCode Debugging
+
+After running `mage debug vscode`, you can attach to the running processes using VSCode.
+The launch.json file can be found [Here](../developer/debug/launch.json)
+
+For using VSCode debugging, see the [VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
+
+### Delve Debugging
+
+The delve target creates a new docker-compose file: `./docker-compose.dev.yaml` with the correct volumes, commands and images for debugging.
+
+If you would like to manually create the compose file and run it yourself, you can run the following commands:
 
 ```bash
-localdev/run.sh debug
-dlv connect localhost:4000
+mage createDelveCompose
+
+# You can then start components manually
+docker compose -f docker-compose.dev.yaml up -d server executor
+```
+
+After running `mage debug delve`, you can attach to the running processes using Delve.
+
+```bash
+$ docker compose exec -it server bash
+root@3b5e4089edbb:/app# dlv connect :4000
 Type 'help' for list of commands.
+(dlv) b (*SubmitServer).CreateQueue
+Breakpoint 3 set at 0x1fb3800 for github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:137
+(dlv) c
+> github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:140 (PC: 0x1fb38a0)
+   135: }
+   136:
+=> 137: func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
+   138:         err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
+   139:         var ep *ErrUnauthorized
+   140:         if errors.As(err, &ep) {
+   141:                 return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", request.Name, ep)
+   142:         } else if err != nil {
+   143:                 return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error checking permissions: %s", err)
+   144:         }
+   145:
 (dlv)
 ```
 
-|Armada service   |Debug host    |
-|-----------------|--------------|
-|Server           |localhost:4000|
-|Lookout          |localhost:4001|
-|Executor         |localhost:4002|
-|Binoculars       |localhost:4003|
-|Jobservice       |localhost:4004|
-|Lookout-ingester |localhost:4005|
-|Event-ingester   |localhost:4006|
+All outputs of delve can be found in the `./delve` directory.
 
-## Usage metrics
+External Debug Port Mappings:
 
-Some functionality the executor has is to report how much cpu/memory jobs are using.
-
-This is turned on by changing the executor config file to include:
-``` yaml
-metric:
-   exposeQueueUsageMetrics: true
-```
-
-The metrics are calculated by getting values from metrics-server.
-
-When developing locally with Kind, you will also need to deploy metrics-server to allow this to work.
-
-The simplest way to do this it to apply this to your kind cluster:
-
-```
-kubectl apply -f https://gist.githubusercontent.com/hjacobs/69b6844ba8442fcbc2007da316499eb4/raw/5b8678ac5e11d6be45aa98ca40d17da70dcb974f/kind-metrics-server.yaml
-```
-
-### Setting up OIDC for developers.
-
-Setting up OIDC can be an art.  The [Okta Developer Program](https://developer.okta.com/signup/) provides a nice to test OAuth flow.
-
-1) Create a Okta Developer Account
-    - I used my github account.
-2) Create a new App in the Okta UI.
-    - Select OIDC - OpenID Connect.
-    - Select Web Application.
-3) In grant type, make sure to select Client Credentials.  This has the advantage of requiring little interaction. 
-4) Select 'Allow Everyone to Access'
-5) Deselect Federation Broker Mode.
-6) Click okay and generate a client secret.
-7) Navigate in the Okta settings to the API settings for your default authenticator.
-8) Select Audience to be your client id.
+| Armada service  | Debug host     |
+|-----------------|----------------|
+| server          | localhost:4000 |
+| executor        | localhost:4001 |
+| binoculars      | localhost:4002 |
+| eventingester   | localhost:4003 |
+| lookoutui       | localhost:4004 |
+| lookout         | localhost:4005 |
+| lookoutingester | localhost:4007 |
 
 
-Setting up OIDC for Armada requires two separate configs (one for Armada server and one for the clients)
+## GoLand Run Configurations
 
-You can add this to your armada server config.
-```
- auth:
-    anonymousAuth: false
-    openIdAuth:
-      providerUrl: "https://OKTA_DEV_USERNAME.okta.com/oauth2/default"
-      groupsClaim: "groups"
-      clientId: "CLIENT_ID_FROM_UI"
-      scopes: []
-```
+We provide a number of run configurations within the `.run` directory of this project. These will be accessible when opening the project in GoLand, allowing you to run Armada in both standard and debug mode.
 
-For client credentials, you can use the following config for the executor and other clients.
+The following high-level configurations are provided, each composed of sub-configurations:
+1. `Armada Infrastructure Services`
+    - Runs Infrastructure Services required to run Armada, irrespective of scheduler type
+2. `Armada (Legacy Scheduler)`
+   - Runs Armada with the Legacy Scheduler
+3. `Armada (Pulsar Scheduler)`
+   - Runs Armada with the Pulsar Scheduler (recommended)
+4. `Lookout UI`
+   - Script which configures a local UI development setup
 
-```
-  openIdClientCredentialsAuth:
-      providerUrl: "https://OKTA_DEV_USERNAME.okta.com/oauth2/default"
-    clientId: "CLIENT_ID_FROM_UI"
-    clientSecret: "CLIENT_SECRET"
-    scopes: []
-```
+A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `Lookout UI` script on top of this configuration would allow you to develop the Lookout UI live from GoLand, and see the changes visible in your browser. **These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/internal/config`**
 
-If you want to interact with Armada, you will have to use one of our client APIs.  The armadactl is not setup to work with OIDC at this time.
+GoLand does not allow us to specify an ordering for services within docker compose configurations. As a result, some database migration services may require rerunning.
+
+### Other Debugging Methods
+
+Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
+
+For required enviromental variables, please see [The Enviromental Variables Guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
+
+## Finer-Grain Control
+
+If you would like to run the individual mage targets yourself, you can do so.
+See the [Manually Running LocalDev](./developer/manual-localdev.md) guide for more information.

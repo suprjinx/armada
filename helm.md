@@ -1,6 +1,7 @@
 # Armada helm charts
 
 Armada provides helm charts to assist with deployment of armada executors and services.
+These require Helm `3.10.0` or later.
 
 ## Executor helm chart
 
@@ -62,6 +63,16 @@ applicationConfig:
     clusterId: "cluster-1"
   apiConnection:
     armadaUrl: "server.url.com:443"  
+```
+
+**Note:** The values you enter in this section will be placed into a K8s configmap. For senistive values (e.g. database passwords) we recommend setting them as environmental variables from a non-helm managed secret:
+```yaml
+env:
+- name: ARMADA_POSTGRES_CONNECTION_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      key: password
+      name: lookout-postgres-password
 ```
 
 #### Credentials
@@ -331,12 +342,9 @@ Armada allows you to specify these permissions for user:
 
 | Permission         | Details                                                                           |
 |--------------------|-----------------------------------------------------------------------------------|
-| `submit_jobs`      | Allows users submit jobs to their queue.                                          |
 | `submit_any_jobs`  | Allows users submit jobs to any queue.                                            |
 | `create_queue`     | Allows users submit jobs to create queue.                                         |
-| `cancel_jobs`      | Allows users cancel jobs from their queue.                                        |
 | `cancel_any_jobs`  | Allows users cancel jobs from any queue.                                          |
-| `watch_events`     | Allows users to watch events from their queue.                                    |
 | `watch_all_events` | Allows for watching all events.                                                   |
 | `execute_jobs`     | Protects apis used by executor, only executor service should have this permission |
 
@@ -344,12 +352,9 @@ Permissions can be assigned to user by group membership, like this:
 
 ```yaml
 permissionGroupMapping:
-  submit_jobs: ["teamA", "administrators"]
   submit_any_jobs: ["administrators"]
   create_queue: ["administrators"]
-  cancel_jobs: ["teamA", "administrators"]
   cancel_any_jobs: ["administrators"]
-  watch_events: ["teamA", "administrators"]
   watch_all_events: ["administrators"]
   execute_jobs: ["armada-executor"]
 ```
